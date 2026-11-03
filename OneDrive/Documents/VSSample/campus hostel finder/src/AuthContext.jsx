@@ -1,9 +1,6 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
-
-export const HOME = { STUDENT: "/student/dashboard", LANDLORD: "/landlord/dashboard", ADMIN: "/admin/dashboard" };
-const Ctx = createContext(null);
-export const useAuth = () => useContext(Ctx);
+import { AuthContext } from "./auth";
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
@@ -55,5 +52,5 @@ export function AuthProvider({ children }) {
     resetPassword: (email) => supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + "/login" }),
     signOut: () => supabase.auth.signOut(),
   };
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

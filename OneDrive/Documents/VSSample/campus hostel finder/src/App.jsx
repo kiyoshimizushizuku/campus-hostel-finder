@@ -1,6 +1,8 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Link, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
-import { AuthProvider, HOME, useAuth } from "./AuthContext";
+import { AuthProvider } from "./AuthContext";
+import { HOME, useAuth } from "./auth";
+import { ActivePresenceProvider } from "./hooks/useActivePresence";
 import ProtectedRoute from "./ProtectedRoute";
 import Login from "./Login";
 
@@ -8,10 +10,13 @@ const LandlordPublicView = lazy(() => import("./LandlordPublicView"));
 const AdminDashboard = lazy(() => import("./admin/AdminDashboard"));
 const HostelListingForm = lazy(() => import("./landlord/HostelListingForm"));
 const LandlordDashboard = lazy(() => import("./landlord/LandlordDashboard"));
+const LandlordDirectory = lazy(() => import("./landlord/LandlordDirectory"));
 const LandlordProfileForm = lazy(() => import("./landlord/LandlordProfileForm"));
 const HostelSearchAndFilter = lazy(() => import("./student/HostelSearchAndFilter"));
 const StudentChat = lazy(() => import("./student/StudentChat"));
 const StudentDirectory = lazy(() => import("./student/StudentDirectory"));
+const Inbox = lazy(() => import("./student/Inbox"));
+const PublicProfile = lazy(() => import("./PublicProfile"));
 const StudentProfileForm = lazy(() => import("./student/StudentProfileForm"));
 const StudentReportForm = lazy(() => import("./student/StudentReportForm"));
 const StudentBookings = lazy(() => import("./student/StudentBookings"));
@@ -22,13 +27,14 @@ const LINKS = {
   STUDENT: [
     ["Hostel search", "/student/dashboard"],
     ["My profile", "/student/profile"],
-    ["Student network", "/student/peers"],
+    ["Inbox", "/inbox"],
     ["My bookings", "/student/bookings"],
     ["Report an issue", "/student/report"],
   ],
   LANDLORD: [
     ["My dashboard", "/landlord/dashboard"],
     ["My profile", "/landlord/profile"],
+    ["Inbox", "/inbox"],
     ["New listing", "/landlord/listing/new"],
   ],
   ADMIN: [["Admin dashboard", "/admin/dashboard"]],
@@ -59,7 +65,7 @@ function PortalLayout() {
                 key={path}
                 to={path}
                 aria-current={location.pathname === path ? "page" : undefined}
-                className={`rounded-lg px-3 py-2 text-sm ${location.pathname === path ? "bg-[#A8C887] font-semibold text-[#182019]" : "bg-white/10 text-white"}`}
+                className={`relative rounded-lg px-3 py-2 text-sm ${location.pathname === path ? "bg-[#A8C887] font-semibold text-[#182019]" : "bg-white/10 text-white"}`}
               >
                 {label}
               </Link>
@@ -70,9 +76,11 @@ function PortalLayout() {
           </nav>
         </div>
       </header>
-      <main className="py-4">
-        <Outlet />
-      </main>
+      <ActivePresenceProvider userId={profile.id}>
+        <main className="py-4">
+          <Outlet />
+        </main>
+      </ActivePresenceProvider>
       <footer className="px-4 pb-8 text-center text-sm text-[#9FB0D3]">
         Always visit a hostel and confirm the terms before paying.
       </footer>
@@ -86,6 +94,10 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<HomeRedirect />} />
         <Route path="/login" element={<Login />} />
+
+        <Route element={<ProtectedRoute roles={["STUDENT", "LANDLORD"]}><PortalLayout /></ProtectedRoute>}>
+          <Route path="/inbox" element={<Inbox />} />
+        </Route>
 
         <Route element={<ProtectedRoute roles={["STUDENT"]}><PortalLayout /></ProtectedRoute>}>
           <Route path="/student" element={<Navigate to="/student/dashboard" replace />} />
@@ -102,6 +114,8 @@ function AppRoutes() {
         <Route element={<ProtectedRoute roles={["LANDLORD"]}><PortalLayout /></ProtectedRoute>}>
           <Route path="/landlord" element={<Navigate to="/landlord/dashboard" replace />} />
           <Route path="/landlord/dashboard" element={<LandlordDashboard />} />
+          <Route path="/landlord/peers" element={<LandlordDirectory />} />
+          <Route path="/landlord/chat/:userId" element={<StudentChat />} />
           <Route path="/landlord/profile" element={<LandlordProfileForm />} />
           <Route path="/landlord/listing/new" element={<HostelListingForm />} />
           <Route path="/landlord/listing/:id/edit" element={<HostelListingForm />} />
@@ -118,6 +132,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute roles={["STUDENT", "LANDLORD", "ADMIN"]}>
               <div className="mx-auto max-w-6xl px-4"><LandlordPublicView /></div>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profiles/:userId"
+          element={
+            <ProtectedRoute roles={["STUDENT", "LANDLORD"]}>
+              <div className="mx-auto max-w-6xl px-4"><PublicProfile /></div>
             </ProtectedRoute>
           }
         />

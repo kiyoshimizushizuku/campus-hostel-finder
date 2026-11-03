@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../AuthContext";
+import { useAuth } from "../auth";
 import { supabase } from "../lib/supabase";
 import { CARD } from "../ui";
+import ProfileAvatar from "../components/ProfileAvatar";
+import { useActiveUsers } from "../hooks/activePresence";
 
 const STATUS = {
   pending: "Awaiting landlord reply",
@@ -12,6 +14,7 @@ const STATUS = {
 
 export default function StudentBookings() {
   const { profile } = useAuth();
+  const activeUsers = useActiveUsers();
   const [bookings, setBookings] = useState([]);
   const [landlords, setLandlords] = useState({});
   const [message, setMessage] = useState("");
@@ -34,7 +37,7 @@ export default function StudentBookings() {
     if (ids.length) {
       const { data: owners, error: ownerError } = await supabase
         .from("landlord_public")
-        .select("user_id,name,contact_no")
+        .select("user_id,name,contact_no,profile_pic_url")
         .in("user_id", ids);
       if (ownerError) setMessage(ownerError.message);
       else setLandlords(Object.fromEntries((owners || []).map((owner) => [owner.user_id, owner])));
@@ -45,7 +48,8 @@ export default function StudentBookings() {
   }, [profile.id]);
 
   useEffect(() => {
-    load();
+    const timer = window.setTimeout(load, 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   return (
@@ -76,10 +80,20 @@ export default function StudentBookings() {
             </div>
             <p className="text-sm">Requested move-in: <b>{booking.move_in_date}</b></p>
             {booking.message && <p className="text-sm text-[#D7E6D1]">{booking.message}</p>}
-            <p className="text-xs text-[#C7D2EA]">
-              Landlord: {landlord?.name || "Your landlord"}
-              {landlord?.contact_no ? ` · ${landlord.contact_no}` : ""}
-            </p>
+            <div className="flex items-center gap-2 text-xs text-[#C7D2EA]">
+              {landlord && (
+                <ProfileAvatar
+                  size="sm"
+                  imageUrl={landlord.profile_pic_url}
+                  name={landlord.name}
+                  active={activeUsers.has(booking.landlord_id)}
+                />
+              )}
+              <span>
+                Landlord: {landlord?.name || "Your landlord"}
+                {landlord?.contact_no ? ` · ${landlord.contact_no}` : ""}
+              </span>
+            </div>
             <Link to={`/student/bookings/${booking.id}/chat`} className="inline-flex rounded-lg bg-[#E3B86B] px-3 py-2 text-xs font-semibold text-[#28200F]">
               Message landlord 💬
             </Link>

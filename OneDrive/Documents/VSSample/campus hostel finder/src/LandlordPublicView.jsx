@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "./lib/supabase";
-import { useAuth, HOME } from "./AuthContext";
+import { useAuth, HOME } from "./auth";
 
 const tk = (n) => "৳" + Number(n || 0).toLocaleString("en-BD");
 

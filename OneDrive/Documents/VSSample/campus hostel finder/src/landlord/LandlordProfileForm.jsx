@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { uploadImage } from "../lib/upload";
-import { useAuth } from "../AuthContext";
+import { useAuth } from "../auth";
 import { FIELD, CARD, BTN } from "../ui";
 
 export default function LandlordProfileForm() {

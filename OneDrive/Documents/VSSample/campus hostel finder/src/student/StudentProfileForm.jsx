@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../AuthContext";
+import { useAuth } from "../auth";
 import LocationPicker from "../components/LocationPicker";
 
 const FIELD = "w-full rounded-xl bg-white/10 border border-white/20 px-3 py-2.5 text-sm text-white placeholder-[#9FB0D3] [color-scheme:dark] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2DD4BF]";

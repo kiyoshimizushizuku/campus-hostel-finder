@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { uploadImage } from "../lib/upload";
-import { useAuth } from "../AuthContext";
+import { useAuth } from "../auth";
 import LocationPicker from "../components/LocationPicker";
 import { FIELD, CARD, BTN, GHOSTBTN } from "../ui";
 

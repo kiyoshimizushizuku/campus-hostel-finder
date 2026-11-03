@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../AuthContext";
+import { useAuth } from "../auth";
 import { CARD, GHOSTBTN, tk } from "../ui";
+import ProfileAvatar from "../components/ProfileAvatar";
+import { useActiveUsers } from "../hooks/activePresence";
 
 const BADGE = { approved: "bg-green-500/30", pending: "bg-yellow-500/30", rejected: "bg-red-500/30" };
 
 export default function LandlordDashboard() {
   const { profile } = useAuth();
+  const activeUsers = useActiveUsers();
   const [me, setMe] = useState(null);
   const [hostels, setHostels] = useState([]);
   const [leads, setLeads] = useState([]);
   const [requests, setRequests] = useState([]);
   const [responding, setResponding] = useState("");
+  const [respondingInterest, setRespondingInterest] = useState("");
   const [msg, setMsg] = useState("");
 
   const load = useCallback(async () => {
@@ -26,7 +30,10 @@ export default function LandlordDashboard() {
     const err = m.error || h.error || l.error || r.error;
     setMsg(err ? err.message : "");
   }, [profile.id]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(load, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const setVac = async (h, v) => { if (v < 0) return; await supabase.from("hostels").update({ vacancy_count: v }).eq("id", h.id); load(); };
   const remove = async (h) => { if (confirm(`Delete "${h.house_name}"?`)) { await supabase.from("hostels").delete().eq("id", h.id); load(); } };
@@ -45,6 +52,23 @@ export default function LandlordDashboard() {
     setMsg(status === "accepted"
       ? "Booking accepted. One room has been held for this student."
       : "Request declined. At least the suspense is over.");
+    await load();
+  };
+  const respondToInterest = async (interest, status) => {
+    const key = `${interest.hostel_id}:${interest.student_id}`;
+    setRespondingInterest(key);
+    setMsg("");
+    const { error } = await supabase.rpc("respond_to_hostel_interest", {
+      p_hostel_id: interest.hostel_id,
+      p_student_id: interest.student_id,
+      p_status: status,
+    });
+    setRespondingInterest("");
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
+    setMsg(status === "accepted" ? "Student interest accepted." : "Student interest declined.");
     await load();
   };
   const incomplete = me && (!me.name || !me.contact_no);
@@ -96,7 +120,15 @@ export default function LandlordDashboard() {
             <article key={request.id} className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3 text-sm">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <b>{request.student_name || "Student"} · {request.house_name}</b>
+                  <div className="flex items-center gap-2">
+                    <ProfileAvatar
+                      size="sm"
+                      imageUrl={request.student_profile_pic_url}
+                      name={request.student_name}
+                      active={activeUsers.has(request.student_id)}
+                    />
+                    <b>{request.student_name || "Student"} · {request.house_name}</b>
+                  </div>
                   <p className="text-xs text-[#C7D2EA]">
                     Move-in {request.move_in_date} · {request.department || "Department not provided"}
                     {request.student_contact ? ` · ${request.student_contact}` : ""}
@@ -123,13 +155,43 @@ export default function LandlordDashboard() {
           {leads.length === 0 && <p className="text-sm text-[#C7D2EA]">Nobody yet. Students appear here after tapping "I'm interested".</p>}
           {leads.map((s) => (
             <div key={s.hostel_id + s.student_id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/5 p-3 text-sm">
-              <div>
-                <b>{s.name || "Student"}</b> {s.verified && <span className="rounded bg-[#2DD4BF] px-1.5 text-xs text-[#06222B]">Verified</span>}
-                <p className="text-xs text-[#C7D2EA]">{s.department || "—"} · for {s.house_name}</p>
+              <div className="flex items-center gap-2">
+                <ProfileAvatar
+                  size="sm"
+                  imageUrl={s.profile_pic_url}
+                  name={s.name}
+                  active={activeUsers.has(s.student_id)}
+                />
+                <div>
+                  <b>{s.name || "Student"}</b> {s.verified && <span className="rounded bg-[#2DD4BF] px-1.5 text-xs text-[#06222B]">Verified</span>}
+                  <p className="text-xs text-[#C7D2EA]">{s.department || "—"} · for {s.house_name}</p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
+                <Link to={`/profiles/${s.student_id}`} className={GHOSTBTN}>View profile</Link>
                 <Link to={`/landlord/hostels/${s.hostel_id}/students/${s.student_id}/chat`} className={GHOSTBTN}>Message student 💬</Link>
                 {s.contact_no ? <a href={`tel:${s.contact_no}`} className={GHOSTBTN}>{s.contact_no}</a> : <span className="text-xs text-[#C7D2EA]">No phone</span>}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-white/10 px-2 py-1 text-xs capitalize">{s.status || "pending"}</span>
+                {s.status !== "accepted" && s.status !== "declined" && (
+                  <>
+                    <button
+                      disabled={respondingInterest === `${s.hostel_id}:${s.student_id}`}
+                      onClick={() => respondToInterest(s, "accepted")}
+                      className="rounded-lg bg-[#2DD4BF] px-3 py-1.5 text-xs font-semibold text-[#06222B] disabled:opacity-40"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      disabled={respondingInterest === `${s.hostel_id}:${s.student_id}`}
+                      onClick={() => respondToInterest(s, "declined")}
+                      className={GHOSTBTN}
+                    >
+                      Decline
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))}

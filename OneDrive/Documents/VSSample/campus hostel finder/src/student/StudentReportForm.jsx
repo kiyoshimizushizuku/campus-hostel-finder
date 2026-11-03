@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../AuthContext";
+import { useAuth } from "../auth";
 import { supabase } from "../lib/supabase";
 import { CARD, FIELD } from "../ui";
 

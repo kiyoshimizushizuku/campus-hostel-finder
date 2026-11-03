@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "./auth";
 
 /* ---------- Helpers ---------- */
 const iso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);

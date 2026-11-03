@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
-import { useAuth, HOME } from "./AuthContext";
+import { useAuth, HOME } from "./auth";
 
 // UX guard only. Real enforcement is RLS in the database.
 export default function ProtectedRoute({ roles, children }) {

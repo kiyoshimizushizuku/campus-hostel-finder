@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useAuth } from "../AuthContext";
+import { useAuth } from "../auth";
 import { supabase } from "../lib/supabase";
 import { CARD } from "../ui";
 
@@ -13,6 +13,7 @@ export default function HostelInterestChat() {
   const [draft, setDraft] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [chatAvailable, setChatAvailable] = useState(false);
 
   const loadMessages = useCallback(async () => {
     const [{ data: interest, error: interestError }, { data: rows, error: messagesError }] = await Promise.all([
@@ -29,22 +30,28 @@ export default function HostelInterestChat() {
     ]);
 
     if (interestError || messagesError) {
+      setChatAvailable(false);
       setNotice(interestError?.message || messagesError?.message);
       return;
     }
     if (!interest) {
+      setChatAvailable(false);
       setNotice("This private chat opens after the student marks interest in the listing.");
       return;
     }
+    setChatAvailable(true);
     setHostelName(interest.hostels?.house_name || "Hostel");
     setMessages(rows || []);
     setNotice("");
   }, [hostelId, studentId]);
 
   useEffect(() => {
-    loadMessages();
+    const initialLoad = window.setTimeout(loadMessages, 0);
     const timer = window.setInterval(loadMessages, 5000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(timer);
+    };
   }, [loadMessages]);
 
   const send = async (event) => {
@@ -96,12 +103,12 @@ export default function HostelInterestChat() {
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           maxLength={4000}
-          disabled={!!notice || busy}
+          disabled={!chatAvailable || busy}
           aria-label="Message"
           placeholder="Ask about rent, rooms, move-in, or house rules…"
           className="min-w-0 flex-1 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm text-white placeholder-[#C7D2E0]"
         />
-        <button disabled={!!notice || busy || !draft.trim()} className="rounded-xl bg-[#A8C887] px-4 py-2 text-sm font-semibold text-[#182019] disabled:opacity-40">
+        <button disabled={!chatAvailable || busy || !draft.trim()} className="rounded-xl bg-[#A8C887] px-4 py-2 text-sm font-semibold text-[#182019] disabled:opacity-40">
           {busy ? "Sending…" : "Send"}
         </button>
       </form>

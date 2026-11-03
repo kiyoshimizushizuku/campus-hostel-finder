@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../AuthContext";
+import { useAuth } from "../auth";
 import LocationPicker from "../components/LocationPicker";
+import { FIELD } from "../ui";
+import ProfileAvatar from "../components/ProfileAvatar";
+import { useActiveUsers } from "../hooks/activePresence";
 
-const FIELD = "rounded-xl bg-white/10 border border-white/20 px-3 py-2 text-sm text-white [color-scheme:dark]";
 const tk = (n) => "৳" + Number(n || 0).toLocaleString("en-BD");
 const localToday = new Date();
 localToday.setMinutes(localToday.getMinutes() - localToday.getTimezoneOffset());
@@ -12,6 +14,7 @@ const MIN_BOOKING_DATE = localToday.toISOString().slice(0, 10);
 
 export default function HostelSearchAndFilter() {
   const { profile } = useAuth();
+  const activeUsers = useActiveUsers();
   const [unis, setUnis] = useState([]);
   const [uni, setUni] = useState("");
   const [targetPoint, setTargetPoint] = useState(null);
@@ -21,7 +24,8 @@ export default function HostelSearchAndFilter() {
   const [sort, setSort] = useState("distance");
   const [rows, setRows] = useState([]);
   const [owners, setOwners] = useState({});
-  const [interestedIds, setInterestedIds] = useState(new Set());
+  const [interestStatuses, setInterestStatuses] = useState({});
+  const [interestSubmitting, setInterestSubmitting] = useState(new Set());
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [bookingHostel, setBookingHostel] = useState(null);
@@ -82,15 +86,16 @@ export default function HostelSearchAndFilter() {
   useEffect(() => {
     const ids = rows.map((row) => row.id);
     if (!ids.length) {
-      setInterestedIds(new Set());
       return;
     }
-    supabase.from("hostel_interests").select("hostel_id")
+    supabase.from("hostel_interests").select("hostel_id,status")
       .eq("student_id", profile.id)
       .in("hostel_id", ids)
       .then(({ data, error }) => {
         if (error) setMsg(error.message);
-        else setInterestedIds(new Set((data || []).map((interestRow) => interestRow.hostel_id)));
+        else setInterestStatuses(Object.fromEntries(
+          (data || []).map((interestRow) => [interestRow.hostel_id, interestRow.status || "pending"]),
+        ));
       });
   }, [rows, profile.id]);
 
@@ -117,13 +122,23 @@ export default function HostelSearchAndFilter() {
   };
 
   const interest = async (id) => {
-    const { error } = await supabase.from("hostel_interests").insert({ hostel_id: id, student_id: profile.id });
-    if (error && error.code !== "23505") {
+    setInterestSubmitting((current) => new Set(current).add(id));
+    const { data: status, error } = await supabase.rpc("request_hostel_interest", {
+      p_hostel_id: id,
+    });
+    setInterestSubmitting((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+    if (error) {
       setMsg(error.message);
       return;
     }
-    setInterestedIds((current) => new Set(current).add(id));
-    setMsg(error ? "The landlord already has your interest. No need to wink twice." : "Interest sent. You can now message the landlord about this place.");
+    setInterestStatuses((current) => ({ ...current, [id]: status }));
+    setMsg(status === "pending"
+      ? "Interest sent. You can now message the landlord about this place."
+      : "This landlord has already responded to your interest.");
   };
 
   const book = async (event) => {
@@ -203,16 +218,41 @@ export default function HostelSearchAndFilter() {
                 <p className="text-sm">Rent <b>{tk(h.monthly_rent)}</b> · {h.vacancy_count > 0 ? `${h.vacancy_count} vacant` : "Full"}</p>
                 <p className="text-xs text-[#C7D2EA]">Electricity {tk(h.electricity_bill)} · Water {tk(h.water_bill)} · Trash/Moyla {tk(h.trash_bill)}</p>
                 <p className="text-xs">Est. monthly total: <b>{tk(h.monthly_rent + h.electricity_bill + h.water_bill + h.trash_bill)}</b></p>
-                {o && <p className="text-xs">Landlord: {o.name} · {o.contact_no || "no number"}</p>}
+                {o && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <ProfileAvatar
+                      size="sm"
+                      imageUrl={o.profile_pic_url}
+                      name={o.name}
+                      active={activeUsers.has(h.landlord_id)}
+                    />
+                    <span>Landlord: {o.name} · {o.contact_no || "no number"}</span>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2 pt-1 text-xs">
                   <Link to={`/hostel/${h.id}`} className="rounded-lg bg-[#2DD4BF] px-3 py-1.5 font-semibold text-[#06222B]">View details</Link>
                   <a href={`https://www.google.com/maps?q=${h.lat},${h.lng}`} target="_blank" rel="noreferrer" className="rounded-lg bg-white/10 px-3 py-1.5">Open in Maps</a>
                   <button onClick={() => { setBookingHostel(h); setMoveInDate(""); setBookingNote(""); }} disabled={h.vacancy_count < 1} className="rounded-lg bg-[#E3B86B] px-3 py-1.5 font-semibold text-[#28200F] disabled:opacity-40">
                     Request to book
                   </button>
-                  {interestedIds.has(h.id)
-                    ? <Link to={`/student/hostels/${h.id}/chat`} className="rounded-lg border border-[#A8C887]/30 bg-[#A8C887]/15 px-3 py-1.5 text-[#E4F0D8]">Message landlord 💬</Link>
-                    : <button onClick={() => interest(h.id)} className="rounded-lg bg-white/10 px-3 py-1.5">I’m interested</button>}
+                  {interestStatuses[h.id] && interestStatuses[h.id] !== "declined" ? (
+                    <>
+                      <span className="rounded-lg bg-white/10 px-3 py-1.5 capitalize">
+                        Interest {interestStatuses[h.id]}
+                      </span>
+                      <Link to={`/student/hostels/${h.id}/chat`} className="rounded-lg border border-[#A8C887]/30 bg-[#A8C887]/15 px-3 py-1.5 text-[#E4F0D8]">Message landlord 💬</Link>
+                    </>
+                  ) : (
+                    <button
+                      disabled={interestSubmitting.has(h.id)}
+                      onClick={() => interest(h.id)}
+                      className="rounded-lg bg-white/10 px-3 py-1.5 disabled:opacity-40"
+                    >
+                      {interestSubmitting.has(h.id)
+                        ? "Sending…"
+                        : interestStatuses[h.id] === "declined" ? "Apply again" : "I’m interested"}
+                    </button>
+                  )}
                 </div>
                 {bookingHostel?.id === h.id && (
                   <form onSubmit={book} className="space-y-2 rounded-xl border border-[#E3B86B]/30 bg-black/20 p-3">

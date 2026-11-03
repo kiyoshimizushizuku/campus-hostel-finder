@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useAuth } from "../AuthContext";
+import { useAuth } from "../auth";
 import { supabase } from "../lib/supabase";
 import { CARD } from "../ui";
 
@@ -39,9 +39,12 @@ export default function BookingChat() {
   }, [requestId]);
 
   useEffect(() => {
-    loadMessages();
+    const initialLoad = window.setTimeout(loadMessages, 0);
     const timer = window.setInterval(loadMessages, 5000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(timer);
+    };
   }, [loadMessages]);
 
   const send = async (event) => {

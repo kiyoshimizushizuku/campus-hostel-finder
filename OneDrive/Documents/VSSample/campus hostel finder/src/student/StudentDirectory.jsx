@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../AuthContext";
+import { useAuth } from "../auth";
 import { supabase } from "../lib/supabase";
+import ProfileAvatar from "../components/ProfileAvatar";
+import { useActiveUsers } from "../hooks/activePresence";
 
 export default function StudentDirectory() {
   const { profile } = useAuth();
+  const activeUsers = useActiveUsers();
   const [universityName, setUniversityName] = useState("");
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,9 +74,11 @@ export default function StudentDirectory() {
       <div className="grid gap-3 sm:grid-cols-2">
         {students.map((student) => (
           <article key={student.user_id} className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 p-4">
-            {student.profile_pic_url
-              ? <img src={student.profile_pic_url} alt="" className="h-14 w-14 rounded-full object-cover" />
-              : <div aria-hidden="true" className="h-14 w-14 rounded-full bg-white/15" />}
+            <ProfileAvatar
+              imageUrl={student.profile_pic_url}
+              name={student.name}
+              active={activeUsers.has(student.user_id)}
+            />
             <div className="min-w-0 flex-1">
               <h2 className="font-semibold">{student.name || "Student"} {student.verified && <span className="text-xs text-[#2DD4BF]">Verified</span>}</h2>
               <p className="text-sm text-[#C7D2EA]">{student.department || "Department not provided"}</p>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useAuth } from "../AuthContext";
+import { useAuth } from "../auth";
 import { supabase } from "../lib/supabase";
 
 export default function StudentChat() {
@@ -12,6 +12,10 @@ export default function StudentChat() {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const inboxPath = "/inbox";
+  const directoryPath = profile.role === "LANDLORD" ? "/landlord/peers" : "/student/peers";
+  const recipientTable = profile.role === "LANDLORD" ? "landlord_public" : "student_public";
+  const recipientType = profile.role === "LANDLORD" ? "Landlord" : "Student";
 
   const loadMessages = useCallback(async (id) => {
     const { data, error } = await supabase
@@ -27,11 +31,11 @@ export default function StudentChat() {
     let active = true;
     (async () => {
       if (!userId || userId === profile.id) {
-        setMessage("Choose another student's profile to start a conversation.");
+        setMessage(`Choose another ${recipientType.toLowerCase()}'s profile to start a conversation.`);
         return;
       }
       const [{ data: person, error: personError }, { data: conversation, error: conversationError }] = await Promise.all([
-        supabase.from("student_public").select("user_id,name").eq("user_id", userId).maybeSingle(),
+        supabase.from(recipientTable).select("user_id,name").eq("user_id", userId).maybeSingle(),
         supabase.rpc("get_or_create_conversation", { other_user_id: userId }),
       ]);
       if (!active) return;
@@ -40,7 +44,7 @@ export default function StudentChat() {
         return;
       }
       if (!person) {
-        setMessage("Student profile not found.");
+        setMessage(`${recipientType} profile not found.`);
         return;
       }
       const id = typeof conversation === "string" ? conversation : conversation?.id;
@@ -53,7 +57,13 @@ export default function StudentChat() {
       await loadMessages(id);
     })();
     return () => { active = false; };
-  }, [userId, profile.id, loadMessages]);
+  }, [userId, profile.id, profile.role, recipientTable, recipientType, loadMessages]);
+
+  useEffect(() => {
+    if (!conversationId) return undefined;
+    const timer = window.setInterval(() => loadMessages(conversationId), 5000);
+    return () => window.clearInterval(timer);
+  }, [conversationId, loadMessages]);
 
   const send = async (event) => {
     event.preventDefault();
@@ -79,10 +89,17 @@ export default function StudentChat() {
     <section className="mx-auto max-w-3xl space-y-4 px-4 text-white">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Student chat</h1>
-          {recipient && <p className="text-sm text-[#C7D2EA]">Conversation with {recipient.name || "Student"}</p>}
+          <h1 className="text-2xl font-bold">{recipientType} chat</h1>
+          {recipient && (
+            <Link to={`/profiles/${recipient.user_id}`} className="text-sm text-[#C7D2EA] hover:underline">
+              Conversation with {recipient.name || recipientType} · View profile
+            </Link>
+          )}
         </div>
-        <Link to="/student/peers" className="rounded-lg bg-white/10 px-3 py-2 text-sm">Student network</Link>
+        <div className="flex gap-2">
+          <Link to={directoryPath} className="rounded-lg bg-white/10 px-3 py-2 text-sm">Find {recipientType.toLowerCase()}s</Link>
+          <Link to={inboxPath} className="rounded-lg bg-white/10 px-3 py-2 text-sm">Inbox</Link>
+        </div>
       </div>
       <div aria-live="polite" className="min-h-64 space-y-2 rounded-2xl border border-white/20 bg-white/5 p-4">
         {messages.length === 0 && <p className="text-sm text-[#C7D2EA]">No messages yet. Start the conversation.</p>}
@@ -110,7 +127,7 @@ export default function StudentChat() {
         </button>
       </form>
       {message && <p role="alert" className="text-sm text-[#FFD98A]">{message}</p>}
-      <p className="text-xs text-[#9FB0D3]">Messages are private to the two students in this conversation.</p>
+      <p className="text-xs text-[#9FB0D3]">Messages are private to the two people in this conversation.</p>
     </section>
   );
 }

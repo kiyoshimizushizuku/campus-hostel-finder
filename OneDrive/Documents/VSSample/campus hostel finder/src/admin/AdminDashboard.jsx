@@ -26,7 +26,10 @@ export default function AdminDashboard() {
     const err = s.error || h.error || u.error || unis.error || r.error;
     setMsg(err ? err.message : "");
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(load, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const act = async (p) => { const { error } = await p; setMsg(error ? error.message : ""); load(); };
   const beginEdit = (user) => {
@@ -110,6 +113,13 @@ export default function AdminDashboard() {
                 )}
               </div>
               <p className="whitespace-pre-wrap text-sm">{report.details}</p>
+              <button
+                type="button"
+                onClick={() => confirm("Permanently delete this report?") && act(supabase.from("reports").delete().eq("id", report.id))}
+                className={GHOSTBTN}
+              >
+                Delete report
+              </button>
             </article>
           ))}
         </section>
